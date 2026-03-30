@@ -125,7 +125,11 @@ export const api = {
     request<Movie>(`/api/movies/${id}`, { method: 'PUT', body: payload }),
   // Elimina la película de la base de datos y de la lista local.
   deleteMovie: (id: string) => request<void>(`/api/movies/${id}`, { method: 'DELETE' }),
+  // Alterna el estado de favorito de una película.
+  toggleFavorite: (id: string) =>
+    request<Movie>(`/api/movies/${id}/favorite`, { method: 'PATCH' }),
 
-  // TODO (UD4 - Video): toggleFavorite
-  // TODO (UD4 - Ejercicio): rateMovie
+  // Puntúa una película de 0 a 5 estrellas.
+  rateMovie: (id: string, rating: number) =>
+    request<Movie>(`/api/movies/${id}/rating`, { method: 'PATCH', body: { rating } }),
 };
