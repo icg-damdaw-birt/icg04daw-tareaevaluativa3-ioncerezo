@@ -17,6 +17,8 @@ vi.mock('./api.service', () => ({
     createMovie: vi.fn(),
     updateMovie: vi.fn(),
     deleteMovie: vi.fn(),
+    toggleFavorite: vi.fn(),
+    rateMovie: vi.fn(),
   }
 }));
 
@@ -219,6 +221,197 @@ describe('Movies Store (Svelte 5 Runes)', () => {
       expect(ok).toBe(false);
       expect(moviesStore.error).toBe('Forbidden');
       expect(moviesStore.mutating).toBe(false);
+    });
+  });
+
+  // ─── toggleFavorite ───────────────────────────────────────────
+  describe('toggleFavorite()', () => {
+    it('debería marcar como favorita una película que no lo es', async () => {
+      // ARRANGE
+      const moviesWithFav: Movie[] = [
+        { id: '1', title: 'Inception', director: 'Christopher Nolan', year: 2010, isFavorite: false },
+        { id: '2', title: 'The Matrix', director: 'Wachowski Sisters', year: 1999 },
+      ];
+      vi.mocked(api.getMovies).mockResolvedValue([...moviesWithFav]);
+      await moviesStore.loadMovies();
+
+      const toggled: Movie = { ...moviesWithFav[0], isFavorite: true };
+      vi.mocked(api.toggleFavorite).mockResolvedValue(toggled);
+
+      // ACT
+      const ok = await moviesStore.toggleFavorite('1');
+
+      // ASSERT
+      expect(api.toggleFavorite).toHaveBeenCalledWith('1');
+      expect(ok).toBe(true);
+      expect(moviesStore.movies.find(m => m.id === '1')?.isFavorite).toBe(true);
+    });
+
+    it('debería desmarcar como favorita una película que ya lo es', async () => {
+      // ARRANGE
+      const moviesWithFav: Movie[] = [
+        { id: '1', title: 'Inception', director: 'Christopher Nolan', year: 2010, isFavorite: true },
+      ];
+      vi.mocked(api.getMovies).mockResolvedValue([...moviesWithFav]);
+      await moviesStore.loadMovies();
+
+      const toggled: Movie = { ...moviesWithFav[0], isFavorite: false };
+      vi.mocked(api.toggleFavorite).mockResolvedValue(toggled);
+
+      // ACT
+      const ok = await moviesStore.toggleFavorite('1');
+
+      // ASSERT
+      expect(ok).toBe(true);
+      expect(moviesStore.movies.find(m => m.id === '1')?.isFavorite).toBe(false);
+    });
+
+    it('no debería cambiar el número de películas al alternar favorito', async () => {
+      // ARRANGE
+      vi.mocked(api.getMovies).mockResolvedValue([...mockMovies]);
+      await moviesStore.loadMovies();
+      const initialCount = moviesStore.movies.length;
+
+      const toggled: Movie = { ...mockMovies[0], isFavorite: true };
+      vi.mocked(api.toggleFavorite).mockResolvedValue(toggled);
+
+      // ACT
+      await moviesStore.toggleFavorite('1');
+
+      // ASSERT
+      expect(moviesStore.movies.length).toBe(initialCount);
+    });
+
+    it('debería manejar error al alternar favorito', async () => {
+      // ARRANGE
+      vi.mocked(api.toggleFavorite).mockRejectedValue(new Error('Not found'));
+
+      // ACT
+      const ok = await moviesStore.toggleFavorite('999');
+
+      // ASSERT
+      expect(ok).toBe(false);
+      expect(moviesStore.error).toBe('Not found');
+      expect(moviesStore.mutating).toBe(false);
+    });
+  });
+
+  // ─── rateMovie ────────────────────────────────────────────────
+  describe('rateMovie()', () => {
+    it('debería puntuar una película sin rating previo', async () => {
+      // ARRANGE
+      const moviesWithoutRating: Movie[] = [
+        { id: '1', title: 'Inception', director: 'Christopher Nolan', year: 2010 },
+      ];
+      vi.mocked(api.getMovies).mockResolvedValue([...moviesWithoutRating]);
+      await moviesStore.loadMovies();
+
+      const rated: Movie = { ...moviesWithoutRating[0], rating: 4 };
+      vi.mocked(api.rateMovie).mockResolvedValue(rated);
+
+      // ACT
+      const movie = moviesStore.movies.find(m => m.id === '1')!;
+      const ok = await moviesStore.rateMovie(movie, 4);
+
+      // ASSERT
+      expect(api.rateMovie).toHaveBeenCalledWith('1', 4);
+      expect(ok).toBe(true);
+      expect(moviesStore.movies.find(m => m.id === '1')?.rating).toBe(4);
+    });
+
+    it('debería actualizar el rating de una película que ya tenía uno', async () => {
+      // ARRANGE
+      const moviesWithRating: Movie[] = [
+        { id: '1', title: 'Inception', director: 'Christopher Nolan', year: 2010, rating: 3 },
+      ];
+      vi.mocked(api.getMovies).mockResolvedValue([...moviesWithRating]);
+      await moviesStore.loadMovies();
+
+      const rated: Movie = { ...moviesWithRating[0], rating: 5 };
+      vi.mocked(api.rateMovie).mockResolvedValue(rated);
+
+      // ACT
+      const movie = moviesStore.movies.find(m => m.id === '1')!;
+      const ok = await moviesStore.rateMovie(movie, 5);
+
+      // ASSERT
+      expect(api.rateMovie).toHaveBeenCalledWith('1', 5);
+      expect(ok).toBe(true);
+      expect(moviesStore.movies.find(m => m.id === '1')?.rating).toBe(5);
+    });
+
+    it('debería rechazar un rating fuera de rango (mayor a 5)', async () => {
+      // ARRANGE
+      const moviesData: Movie[] = [
+        { id: '1', title: 'Inception', director: 'Christopher Nolan', year: 2010 },
+      ];
+      vi.mocked(api.getMovies).mockResolvedValue([...moviesData]);
+      await moviesStore.loadMovies();
+
+      // ACT
+      const movie = moviesStore.movies.find(m => m.id === '1')!;
+      const ok = await moviesStore.rateMovie(movie, 6);
+
+      // ASSERT
+      expect(ok).toBe(false);
+      expect(moviesStore.error).toBe('El rating debe ser un número entero entre 0 y 5');
+      expect(api.rateMovie).not.toHaveBeenCalled();
+    });
+
+    it('debería rechazar un rating negativo', async () => {
+      // ARRANGE
+      const moviesData: Movie[] = [
+        { id: '1', title: 'Inception', director: 'Christopher Nolan', year: 2010 },
+      ];
+      vi.mocked(api.getMovies).mockResolvedValue([...moviesData]);
+      await moviesStore.loadMovies();
+
+      // ACT
+      const movie = moviesStore.movies.find(m => m.id === '1')!;
+      const ok = await moviesStore.rateMovie(movie, -1);
+
+      // ASSERT
+      expect(ok).toBe(false);
+      expect(moviesStore.error).toBe('El rating debe ser un número entero entre 0 y 5');
+      expect(api.rateMovie).not.toHaveBeenCalled();
+    });
+
+    it('debería hacer rollback si la API falla', async () => {
+      // ARRANGE
+      const moviesData: Movie[] = [
+        { id: '1', title: 'Inception', director: 'Christopher Nolan', year: 2010, rating: 2 },
+      ];
+      vi.mocked(api.getMovies).mockResolvedValue([...moviesData]);
+      await moviesStore.loadMovies();
+
+      vi.mocked(api.rateMovie).mockRejectedValue(new Error('Server error'));
+
+      // ACT
+      const movie = moviesStore.movies.find(m => m.id === '1')!;
+      const ok = await moviesStore.rateMovie(movie, 5);
+
+      // ASSERT
+      expect(ok).toBe(false);
+      expect(moviesStore.error).toBe('Server error');
+      expect(moviesStore.movies.find(m => m.id === '1')?.rating).toBe(2);
+      expect(moviesStore.mutating).toBe(false);
+    });
+
+    it('no debería cambiar el número de películas al puntuar', async () => {
+      // ARRANGE
+      vi.mocked(api.getMovies).mockResolvedValue([...mockMovies]);
+      await moviesStore.loadMovies();
+      const initialCount = moviesStore.movies.length;
+
+      const rated: Movie = { ...mockMovies[0], rating: 3 };
+      vi.mocked(api.rateMovie).mockResolvedValue(rated);
+
+      // ACT
+      const movie = moviesStore.movies.find(m => m.id === '1')!;
+      await moviesStore.rateMovie(movie, 3);
+
+      // ASSERT
+      expect(moviesStore.movies.length).toBe(initialCount);
     });
   });
 });

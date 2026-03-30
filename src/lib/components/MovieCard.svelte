@@ -6,12 +6,16 @@
     movie,
     showActions = true,
     ondelete,
-    onedit
+    onedit,
+    ontogglefavorite,
+    onrate
   }: {
     movie: Movie;
     showActions?: boolean;
     ondelete?: (id: string) => void;
     onedit?: (movie: Movie) => void;
+    ontogglefavorite?: (id: string) => void;
+    onrate?: (movie: Movie, rating: number) => void;
   } = $props();
 
   // Handlers: ejecutan callbacks del padre directamente
@@ -21,6 +25,14 @@
 
   function handleEdit() {
     onedit?.(movie);
+  }
+
+  function handleToggleFavorite() {
+    ontogglefavorite?.(movie.id);
+  }
+
+  function handleRate(rating: number) {
+    onrate?.(movie, rating);
   }
 </script>
 
@@ -38,10 +50,34 @@
   {/if}
 
   <div class="flex flex-1 flex-col gap-3 p-4">
-    <header>
-      <h3 class="text-lg font-semibold text-slate-900">{movie.title}</h3>
-      <p class="text-sm text-slate-600">Dirigida por {movie.director}</p>
+    <header class="flex items-start justify-between gap-2">
+      <div>
+        <h3 class="text-lg font-semibold text-slate-900">{movie.title}</h3>
+        <p class="text-sm text-slate-600">Dirigida por {movie.director}</p>
+      </div>
+      <button
+        type="button"
+        class="shrink-0 text-xl transition-colors {movie.isFavorite ? 'text-red-500' : 'text-slate-300 hover:text-red-400'}"
+        title={movie.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+        onclick={handleToggleFavorite}
+      >
+        {movie.isFavorite ? '❤️' : '🤍'}
+      </button>
     </header>
+
+    <!-- Rating: 5 estrellas interactivas -->
+    <div class="flex gap-1">
+      {#each [1, 2, 3, 4, 5] as star}
+        <button
+          type="button"
+          class="text-xl transition-colors {star <= (movie.rating ?? 0) ? 'text-yellow-400' : 'text-slate-300 hover:text-yellow-300'}"
+          title="Puntuar {star} estrella{star > 1 ? 's' : ''}"
+          onclick={() => handleRate(star)}
+        >
+          {star <= (movie.rating ?? 0) ? '⭐' : '☆'}
+        </button>
+      {/each}
+    </div>
 
     <div class="mt-auto text-sm text-slate-500">
       {#if movie.year}
